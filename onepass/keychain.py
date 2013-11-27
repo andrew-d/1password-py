@@ -75,7 +75,7 @@ class AgileKeychain(AbstractKeychain):
 
     def unlock(self, password, store='default'):
         self._load_keys(password, store)
-        # TODO: load items
+        self._load_items(password, store)
 
     def _load_keys(self, password, store):
         keys_path = os.path.join(self.path, 'data', store, 'encryptionKeys.js')
@@ -98,11 +98,14 @@ class AgileKeychain(AbstractKeychain):
             possible_key = padding.pkcs5_unpad(cipher.decrypt(sstr.data))
 
             decrypted_validation = self._decrypt_item(level['validation'], possible_key)
-
             if decrypted_validation != possible_key:
                 raise InvalidPasswordError("Validation did not match")
 
             self._keys[level['identifier']] = possible_key
+
+    def _load_items(self, password, store):
+        # TODO: load items
+        pass
 
     def _decrypt_item(self, data, key):
         sstr = SaltedString(data)
@@ -118,6 +121,7 @@ class AgileKeychain(AbstractKeychain):
         return padding.pkcs5_unpad(data)
 
     def _verify(self):
+        # TODO: handle different store?
         files = [
             os.path.join('data', 'default', 'encryptionKeys.js'),
             os.path.join('data', 'default', 'contents.js'),
@@ -138,13 +142,12 @@ def open_keychain(path):
         raise IOError("Keychain at '%s' does not exist" % (path,))
 
     _, ext = os.path.splitext(path)
-    cls = None
     if ext == '.agilekeychain':
         cls = AgileKeychain
-    elif ext == '.cloudkeychain':
-        pass # TODO
-
-    if cls is None:
+    # TODO:
+    #elif ext == '.cloudkeychain':
+    #    pass
+    else:
         raise ValueError("Unknown keychain format '%s'" % (ext,))
 
     return cls(path)
