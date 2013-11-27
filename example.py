@@ -18,5 +18,8 @@ akey = os.path.join(root, 'data', 'sample.agilekeychain')
 k = open_keychain(akey)
 try:
     k.unlock('test')
+
+    for i in k.items:
+        print(i.title)
 except onepass.exceptions.InvalidPasswordError:
     log.error("Bad password")
