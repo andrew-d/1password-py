@@ -83,6 +83,8 @@ class AgileKeychain(AbstractKeychain):
                 salt = '\x00' * 8
 
             iterations = level.get('iterations', 1000)
+            if iterations < 1000:
+                iterations = 1000
             logging.debug("Level uses %d iterations", iterations)
 
             # This format uses AES-128, which is 16 bytes
