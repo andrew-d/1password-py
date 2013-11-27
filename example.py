@@ -17,6 +17,6 @@ akey = os.path.join(root, 'data', 'sample.agilekeychain')
 
 k = open_keychain(akey)
 try:
-    k.unlock('george')
+    k.unlock('test')
 except onepass.exceptions.InvalidPasswordError:
     log.error("Bad password")

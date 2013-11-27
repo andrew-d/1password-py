@@ -10,7 +10,7 @@ except ImportError:
 from abc import ABCMeta, abstractmethod, abstractproperty
 
 import Crypto.Cipher.AES
-import Crypto.Hash.MD5
+from Crypto.Hash import MD5
 
 from .six import add_metaclass
 from .exceptions import *
@@ -19,7 +19,26 @@ from . import padding
 
 
 log = logging.getLogger(__name__)
-SALT_MARKER = 'Salted__'
+
+
+class SaltedString(object):
+    """
+    Helpful class that detects whether a string is salted, and
+    provides the ability to extract the salt and data.
+    """
+    SALT_MARKER = 'Salted__'
+    ZERO_IV = '\x00' * 16
+
+    def __init__(self, b64_string):
+        data = base64.b64decode(b64_string)
+        if data.startswith(self.SALT_MARKER):
+            self.salt = data[8:16]
+            self.data = data[16:]
+            self.is_salted = True
+        else:
+            self.salt = self.ZERO_IV
+            self.data = data
+            self.is_salted = False
 
 
 @add_metaclass(ABCMeta)
@@ -28,13 +47,6 @@ class AbstractKeychain(object):
         self.path = path
         self.unlocked = False
         self._verify()
-        self._init()
-
-    def _init(self):
-        """
-        Can be overridden in a base class to provide initialization.
-        """
-        pass
 
     @abstractmethod
     def _verify(self):
@@ -57,11 +69,13 @@ class AgileKeychain(AbstractKeychain):
     """
     Class that handles reading the standard .agilekeychain format.
     """
-    def _init(self):
+    def __init__(self, *args, **kwargs):
         self._keys = {}
+        super(AgileKeychain, self).__init__(*args, **kwargs)
 
     def unlock(self, password, store='default'):
         self._load_keys(password, store)
+        self._load_items(password, store)
 
     def _load_keys(self, password, store):
         keys_path = os.path.join(self.path, 'data', store, 'encryptionKeys.js')
@@ -71,74 +85,54 @@ class AgileKeychain(AbstractKeychain):
 
         for level in keys['list']:
             logging.info("Decrypting level: %s", level['level'])
-            data = base64.b64decode(level['data'])
 
-            # Grab the salt, if necessary.  It defaults to 8 bytes of NULL.
-            if data[0:8] == SALT_MARKER:
-                logging.debug("Level is salted")
-                salt = data[8:16]
-                data = data[16:]
-            else:
-                logging.debug("Level is unsalted")
-                salt = '\x00' * 8
-
+            sstr = SaltedString(level['data'])
             iterations = level.get('iterations', 1000)
             if iterations < 1000:
                 iterations = 1000
             logging.debug("Level uses %d iterations", iterations)
 
             # This format uses AES-128, which is 16 bytes
-            keys = pbkdf.pbkdf2_sha1(password, salt, 2*16, iterations)
+            keys = pbkdf.pbkdf2_sha1(password, sstr.salt, 2*16, iterations)
             key, iv = keys[:16], keys[16:]
-            print(key.encode('hex'), iv.encode('hex'))
-            print(len(key), len(iv))
 
             cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
-            possible_key = padding.pkcs5_unpad(cipher.decrypt(data))
+            possible_key = padding.pkcs5_unpad(cipher.decrypt(sstr.data))
 
-            validation = base64.b64decode(level['validation'])
-            decrypted_validation = self._decrypt_item(validation, possible_key)
-
+            decrypted_validation = self._decrypt_item(level['validation'], possible_key)
             if decrypted_validation != possible_key:
                 raise InvalidPasswordError("Validation did not match")
 
-            # TODO: multiple stores?
             self._keys[level['identifier']] = possible_key
 
+    def _load_items(self, password, store):
+        # TODO: load items
+        pass
+
     def _decrypt_item(self, data, key):
-        if data[0:8] == SALT_MARKER:
-            log.debug("Item is salted")
-            salt = data[8:16]
-            data = data[16:]
-            keys = pbkdf.pbkdf1_md5(salt, data, 2*16, 1)
+        sstr = SaltedString(data)
+        if sstr.is_salted:
+            keys = pbkdf.pbkdf1_md5(key, sstr.salt, 2*16, 1)
             key, iv = keys[:16], keys[16:]
         else:
-            log.debug("Item is unsalted")
             key = MD5.new(key).digest()
             iv = '\x00' * 16
 
         cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
-        data = cipher.decrypt(data)
+        data = cipher.decrypt(sstr.data)
         return padding.pkcs5_unpad(data)
 
-
     def _verify(self):
+        # TODO: handle different store?
         files = [
-            os.path.join(self.path, 'config', 'buildnum'),
-            os.path.join(self.path, 'data', 'default', 'encryptionKeys.js'),
+            os.path.join('data', 'default', 'encryptionKeys.js'),
+            os.path.join('data', 'default', 'contents.js'),
         ]
 
         for f in files:
-            if not os.path.exists(f) and os.path.isfile(f):
-                raise InvalidKeychainException("File '%s' not found" % (f,))
-
-        # Verify the build number.
-        with open(files[0], 'rb') as f:
-            version_num = int(f.read().strip())
-
-        if not (30000 <= version_num < 40000):
-            raise InvalidKeychainException("Build number %d not supported" % (
-                version_num,))
+            p = os.path.join(self.path, f)
+            if not os.path.exists(p) and os.path.isfile(p):
+                raise InvalidKeychainException("File '%s' not found" % (p,))
 
     @property
     def items(self):
@@ -150,13 +144,12 @@ def open_keychain(path):
         raise IOError("Keychain at '%s' does not exist" % (path,))
 
     _, ext = os.path.splitext(path)
-    cls = None
     if ext == '.agilekeychain':
         cls = AgileKeychain
-    elif ext == '.cloudkeychain':
-        pass # TODO
-
-    if cls is None:
+    # TODO:
+    #elif ext == '.cloudkeychain':
+    #    pass
+    else:
         raise ValueError("Unknown keychain format '%s'" % (ext,))
 
     return cls(path)
