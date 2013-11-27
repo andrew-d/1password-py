@@ -9,17 +9,18 @@ from .log import wrap_function
 
 @wrap_function
 def pbkdf1_md5(password, salt, length, iterations):
-    # Number of blocks of MD5 required to give us the required length.
-    num_blocks = int(ceil(length / 16.0))
-
-    data = password + salt
+    password = password[0:-16]
+    size = 0
     md5 = []
-    for i in range(num_blocks):
-        h = data
+    prev = ''
+    while size < length:
+        curr = prev + password + salt
         for i in range(iterations):
-            h = MD5.new(h).digest()
-        md5.append(h)
-        data = md5[i] + password + salt
+            curr = MD5.new(curr).digest()
+
+        md5.append(curr)
+        size += len(curr)
+        prev = curr
 
     # Join together the blocks and trim.
     return ''.join(md5)[-length:]
