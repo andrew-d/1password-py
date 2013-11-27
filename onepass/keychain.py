@@ -107,11 +107,9 @@ class AgileKeychain(AbstractKeychain):
     def _decrypt_item(self, data, key):
         sstr = SaltedString(data)
         if sstr.is_salted:
-            log.debug("Item is salted")
             keys = pbkdf.pbkdf1_md5(key, sstr.salt, 2*16, 1)
             key, iv = keys[:16], keys[16:]
         else:
-            log.debug("Item is unsalted")
             key = MD5.new(key).digest()
             iv = '\x00' * 16
 
@@ -122,6 +120,7 @@ class AgileKeychain(AbstractKeychain):
     def _verify(self):
         files = [
             os.path.join('data', 'default', 'encryptionKeys.js'),
+            os.path.join('data', 'default', 'contents.js'),
         ]
 
         for f in files:
