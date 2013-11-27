@@ -12,5 +12,7 @@ def pkcs5_unpad(inp, block_size=16):
         return inp
 
     padding_len = ord(inp[-1])
-    print("padding_len = %d" % (padding_len,))
+    if padding_len >= block_size:
+        return inp
+
     return inp[:-padding_len]
