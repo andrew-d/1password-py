@@ -7,7 +7,6 @@ from Crypto.Hash import SHA as SHA1
 from .log import wrap_function
 
 
-@wrap_function
 def pbkdf1_md5(password, salt, length, iterations):
     password = password[0:-16]
     size = 0
@@ -26,7 +25,6 @@ def pbkdf1_md5(password, salt, length, iterations):
     return ''.join(md5)[-length:]
 
 
-@wrap_function
 def pbkdf2_sha1(password, salt, length, iterations):
     prf = lambda secret, salt: HMAC.new(secret, salt,
                                         digestmod=SHA1).digest()
@@ -37,7 +35,6 @@ def pbkdf2_sha1(password, salt, length, iterations):
                   prf=prf)
 
 
-@wrap_function
 def pbkdf2_sha512(password, salt, length, iterations):
     prf = lambda secret, salt: HMAC.new(secret, salt,
                                         digestmod=SHA512).digest()
