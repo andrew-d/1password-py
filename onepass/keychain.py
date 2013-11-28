@@ -178,6 +178,37 @@ class AgileKeychain(AbstractKeychain):
         return self._items
 
 
+class CloudKeychain(AbstractKeychain):
+    def __init__(self, *args, **kwargs):
+        self._keys = {}
+        self._items = []
+        super(AgileKeychain, self).__init__(*args, **kwargs)
+
+    def _verify(self):
+        # TODO: handle different store while verifying?
+        p = os.path.join(self.path, 'default', 'profile.js')
+        if not os.path.exists(p) and os.path.isfile(p):
+            raise InvalidKeychainException("File '%s' not found" % (p,))
+
+    def unlock(self, password, store='default'):
+        profile_path = os.path.join(self.path, store, 'profile.js')
+        with open(profile_path, 'rb') as f:
+            file_data = f.read()
+
+        # The format of the file is:
+        #   var profile={ json };
+        # So, we trim off the first 12 characters and the final semicolon
+        # before loading as JSON.
+        data = json.loads(file_data[12:-1])
+
+        salt = data['salt']
+        iterations = int(data['iterations'])
+
+    @property
+    def items(self):
+        return []
+
+
 def open_keychain(path):
     if not os.path.exists(path):
         raise IOError("Keychain at '%s' does not exist" % (path,))
@@ -185,9 +216,8 @@ def open_keychain(path):
     _, ext = os.path.splitext(path)
     if ext == '.agilekeychain':
         cls = AgileKeychain
-    # TODO:
-    #elif ext == '.cloudkeychain':
-    #    pass
+    elif ext == '.cloudkeychain':
+        cls = CloudKeychain
     else:
         raise ValueError("Unknown keychain format '%s'" % (ext,))
 
