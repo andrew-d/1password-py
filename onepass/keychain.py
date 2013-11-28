@@ -46,6 +46,8 @@ class EncryptionKey(object):
     """
     A class representing a single encryption key.
     """
+    DEFAULT_IV = '\x00' * 16
+
     def __init__(self, key):
         self.iterations = key.get('iterations', 1000)
         if self.iterations < 1000:
@@ -83,11 +85,11 @@ class EncryptionKey(object):
     def _internal_decrypt_item(self, data, key):
         sstr = SaltedString(data)
         if sstr.is_salted:
-            keys = pbkdf.pbkdf1_md5(key, sstr.salt, 2*16, 1)
+            keys = pbkdf.pbkdf1_md5(key, sstr.salt, 32, 1)
             key, iv = keys[:16], keys[16:]
         else:
             key = MD5.new(key).digest()
-            iv = '\x00' * 16
+            iv = self.DEFAULT_IV
 
         cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
         data = cipher.decrypt(sstr.data)
@@ -157,8 +159,7 @@ class AgileKeychain(AbstractKeychain):
 
             kid = item['keyID']
             contents = self._keys[kid].decrypt_item(item['encrypted'])
-            item = BaseItem(item, contents)
-            self._items.append(item)
+            self._items.append(BaseItem(item, contents))
 
     def _verify(self):
         # TODO: handle different store while verifying?
