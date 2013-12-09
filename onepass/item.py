@@ -18,3 +18,30 @@ class BaseItem(object):
     @property
     def title(self):
         return self._meta['title']
+
+    @property
+    def notes(self):
+        return self._data.get('notesPlain')
+
+    @classmethod
+    def create(klass, meta, data):
+        ty = meta.get('typeName')
+        # TODO: pick what class to instantiate (maybe using prefix tree?)
+
+
+class WebItem(BaseItem):
+    @property
+    def username(self):
+        for f in self._data['fields']:
+            if f.get('designation', '') == 'username':
+                return f['value']
+
+        return None
+
+    @property
+    def password(self):
+        for f in self._data['fields']:
+            if f.get('designation', '') == 'password':
+                return f['value']
+
+        return None
