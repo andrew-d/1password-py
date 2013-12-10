@@ -118,7 +118,7 @@ def main():
     elif args.bare:
         printer = lambda i: i.default
     else:
-        printer = lambda i: i.title + ': ' + i.default
+        printer = lambda i: "%s: %s" % (i.title, i.default)
 
     # Get the list of items using our function.
     matching = args.func(keychain, args)
