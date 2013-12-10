@@ -66,34 +66,45 @@ class EncryptionKey(object):
         # We need 32 bytes - 16 for the AES key, and 16 for the IV.
         keys = pbkdf.pbkdf2_sha1(password, self.sstr.salt, 32, self.iterations)
         key, iv = keys[:16], keys[16:]
+        log.debug("Key = %r, IV = %r", key, iv)
 
         # Try decrypting the data with our generated key/IV.
         cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
-        possible_key = padding.pkcs5_unpad(cipher.decrypt(self.sstr.data))
+        possible_key = cipher.decrypt(self.sstr.data)
+        log.debug("Possible key from password: %r", possible_key)
 
         # Validate the key by trying to decrypt the validation with it.
+        # Note that we don't unpad the validation, since we are comparing with
+        # the also-padded key.  No need to unpad and then immediately repad :)
         decrypted_validation = self._internal_decrypt_item(self.validation,
-                                                           possible_key)
+                                                           possible_key,
+                                                           unpad=False)
+        log.debug("Decrypted validation: %r", decrypted_validation)
         if decrypted_validation != possible_key:
             raise InvalidPasswordError("Validation did not match")
 
+        # If we get here, the key is good.
         self.key = possible_key
 
     def decrypt_item(self, item_data):
         return self._internal_decrypt_item(item_data, self.key)
 
-    def _internal_decrypt_item(self, data, key):
+    def _internal_decrypt_item(self, data, key, unpad=True):
         sstr = SaltedString(data)
         if sstr.is_salted:
             keys = pbkdf.pbkdf1_md5(key, sstr.salt, 32, 1)
             key, iv = keys[:16], keys[16:]
+            log.debug("Salted, key = %r, IV = %r", key, iv)
         else:
             key = MD5.new(key).digest()
             iv = self.DEFAULT_IV
+            log.debug("Unsalted, key = %r", key)
 
         cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
         data = cipher.decrypt(sstr.data)
-        return padding.pkcs5_unpad(data)
+        if unpad:
+            data = padding.pkcs5_unpad(data)
+        return data
 
 
 @add_metaclass(ABCMeta)
@@ -159,7 +170,7 @@ class AgileKeychain(AbstractKeychain):
 
             kid = item['keyID']
             contents = self._keys[kid].decrypt_item(item['encrypted'])
-            self._items.append(BaseItem(item, contents))
+            self._items.append(BaseItem.create(item, contents))
 
     def _verify(self):
         # TODO: handle different store while verifying?
