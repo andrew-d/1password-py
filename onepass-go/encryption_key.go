@@ -8,6 +8,8 @@ import (
 	"crypto/sha1"
 
 	"code.google.com/p/go.crypto/pbkdf2"
+
+	"fmt"
 )
 
 type EncryptionKey struct {
@@ -20,6 +22,16 @@ type EncryptionKey struct {
 
 	// Only valid if unlocked
 	key []byte
+}
+
+func (k *EncryptionKey) Describe() string {
+	return fmt.Sprintf("%s: %x (%d) / %x (%d)",
+		k.identifier,
+		k.data.Data[0:10],
+		len(k.data.Data),
+		k.validation[0:10],
+		len(k.validation),
+	)
 }
 
 func (k *EncryptionKey) IsUnlocked() bool {
@@ -110,9 +122,11 @@ func NewEncryptionKey(keyData *keyJson) (*EncryptionKey, error) {
 	}
 
 	// Make the encryption key structure.
+	// validation := bytes.Trim([]byte(keyData.Validation), "\x00")
+	validation := []byte(keyData.Validation)
 	ret := &EncryptionKey{
 		data:       sstr,
-		validation: bytes.Trim([]byte(keyData.Validation), "\x00"),
+		validation: validation,
 		identifier: keyData.Identifier,
 		level:      keyData.Level,
 		iterations: iter,

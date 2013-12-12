@@ -106,6 +106,12 @@ class EncryptionKey(object):
             data = padding.pkcs5_unpad(data)
         return data
 
+    def describe(self):
+        data = ''.join("%02x" % (ord(x),) for x in self.sstr.data[0:10])
+        val = ''.join("%02x" % (ord(x),) for x in self.validation[0:10])
+        return "%s: %s (%d) / %s (%d)" % (self.identifier, data, len(self.sstr.data),
+                                     val, len(self.validation))
+
 
 @add_metaclass(ABCMeta)
 class AbstractKeychain(object):
@@ -153,6 +159,7 @@ class AgileKeychain(AbstractKeychain):
         for key_data in keys['list']:
             logging.info("Decrypting level: %s", key_data['level'])
             key = EncryptionKey(key_data)
+            logging.info(key.describe())
             key.unlock(password)
             self._keys[key.identifier] = key
 

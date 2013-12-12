@@ -68,6 +68,8 @@ func LoadKeychain(rootPath string) (*Keychain, error) {
 			log.Debugf("Error loading key %d (%s)", i, k.Level)
 			return nil, err
 		}
+
+		log.Infof(keys[i].Describe())
 	}
 
 	ret := &Keychain{
