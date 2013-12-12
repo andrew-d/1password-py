@@ -13,6 +13,10 @@ type SaltedString struct {
 }
 
 func NewSaltedString(b64data []byte) (*SaltedString, error) {
+	// Trim any null bytes.
+	b64data = bytes.Trim(b64data, "\x00")
+
+	// Base64 decode
     decodedData := make([]byte, base64.StdEncoding.DecodedLen(len(b64data)))
     _, err := base64.StdEncoding.Decode(decodedData, b64data)
     if err != nil {
