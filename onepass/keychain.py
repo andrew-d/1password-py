@@ -66,12 +66,11 @@ class EncryptionKey(object):
         # We need 32 bytes - 16 for the AES key, and 16 for the IV.
         keys = pbkdf.pbkdf2_sha1(password, self.sstr.salt, 32, self.iterations)
         key, iv = keys[:16], keys[16:]
-        log.debug("Key = %r, IV = %r", key, iv)
+        log.debug("Key = %s, IV = %s", key.encode('hex'), iv.encode('hex'))
 
         # Try decrypting the data with our generated key/IV.
         cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
         possible_key = cipher.decrypt(self.sstr.data)
-        log.debug("Possible key from password: %r", possible_key)
 
         # Validate the key by trying to decrypt the validation with it.
         # Note that we don't unpad the validation, since we are comparing with
@@ -79,7 +78,7 @@ class EncryptionKey(object):
         decrypted_validation = self._internal_decrypt_item(self.validation,
                                                            possible_key,
                                                            unpad=False)
-        log.debug("Decrypted validation: %r", decrypted_validation)
+        log.debug("Decrypted validation: %s", decrypted_validation[-20:].encode('hex'))
         if decrypted_validation != possible_key:
             raise InvalidPasswordError("Validation did not match")
 
@@ -101,6 +100,7 @@ class EncryptionKey(object):
             log.debug("Unsalted, key = %r", key)
 
         cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
+        log.info("len(data) = %d" % (len(sstr.data),))
         data = cipher.decrypt(sstr.data)
         if unpad:
             data = padding.pkcs5_unpad(data)

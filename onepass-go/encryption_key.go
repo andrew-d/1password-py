@@ -62,8 +62,9 @@ func (k *EncryptionKey) Unlock(password string) error {
 	// validation we're given with this key.  If it matches, then we can
 	// assume that the given password is correct.
 	decrypted_validation := make([]byte, len(k.validation))
-	k.decryptItem(decrypted_validation, k.validation, possible_key)
+	decrypted_validation, err = k.decryptItem(decrypted_validation, k.validation, possible_key)
 
+	log.Printf("%x", decrypted_validation[0:20])
 	log.Printf("validation = %x, key = %x", decrypted_validation[len(decrypted_validation)-20:], possible_key[len(possible_key)-20:])
 	if !bytes.Equal(decrypted_validation, possible_key) {
 		return InvalidPassword
@@ -75,14 +76,14 @@ func (k *EncryptionKey) Unlock(password string) error {
 	return nil
 }
 
-func (k *EncryptionKey) DecryptItem(dst, src []byte) error {
+func (k *EncryptionKey) DecryptItem(dst, src []byte) ([]byte, error) {
 	return k.decryptItem(dst, src, k.key)
 }
 
-func (k *EncryptionKey) decryptItem(out, data, key []byte) error {
+func (k *EncryptionKey) decryptItem(out, data, key []byte) ([]byte, error) {
 	sstr, err := NewSaltedString(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// If the value is salted, we PBKDF1 it, otherwise, just calculate the
@@ -100,12 +101,13 @@ func (k *EncryptionKey) decryptItem(out, data, key []byte) error {
 
 	block, err := aes.NewCipher(cipher_key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	out = out[0:len(sstr.Data)]
 	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(out, data)
-	return nil
+	mode.CryptBlocks(out, sstr.Data)
+	return out, nil
 }
 
 func NewEncryptionKey(keyData *keyJson) (*EncryptionKey, error) {
